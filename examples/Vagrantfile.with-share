@@ -1,0 +1,58 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "windows10-zhcn"
+  config.vm.define "win10-with-share"
+  config.vm.boot_timeout = 300
+  
+  config.vm.network "forwarded_port", guest: 3389, host: 53389, auto_correct: true
+  config.vm.network "forwarded_port", guest: 5985, host: 55985, auto_correct: true
+  config.vm.network "forwarded_port", guest: 5986, host: 55986, auto_correct: true
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = 8192
+    vb.cpus = 2
+    vb.gui = true
+    vb.name = "Win10-With-Share"
+    vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]
+    vb.customize ["modifyvm", :id, "--accelerate3d", "on"]
+    vb.customize ["modifyvm", :id, "--vram", 256]
+
+    vb.customize [
+      "sharedfolder", "add", :id,
+      "--name", "shared_data",
+      "--hostpath", File.expand_path("./share_data"),
+      "--automount"
+    ]
+  end
+
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  config.vm.communicator = "winrm"
+  config.winrm.username = "vagrant"
+  config.winrm.password = "vagrant"
+  config.winrm.timeout = 300
+
+  config.vm.provision "shell", privileged: true, inline: <<-SHELL
+    cmd.exe /c "@echo off && ^
+    net use Z: /delete /y 2>NUL && ^
+    net use Z: \\\\vboxsvr\\shared_data /persistent:yes 2>NUL && ^
+    if exist \"Z:\\\" ( ^
+      if not exist \"Z:\\app\" mkdir \"Z:\\app\" && ^
+      if not exist \"Z:\\logs\" mkdir \"Z:\\logs\" && ^
+      if not exist \"Z:\\scripts\" mkdir \"Z:\\scripts\" ^
+    ) && ^
+    secedit /export /cfg C:\\secpol.cfg /quiet && ^
+    (findstr /v \"PasswordComplexity\" C:\\secpol.cfg) > C:\\secpol.cfg.tmp && ^
+    echo PasswordComplexity = 0 >> C:\\secpol.cfg.tmp && ^
+    secedit /configure /db C:\\Windows\\security\\local.sdb /cfg C:\\secpol.cfg.tmp /areas SECURITYPOLICY /quiet && ^
+    del C:\\secpol.cfg C:\\secpol.cfg.tmp /f /q && ^
+    reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\" /v EnableLUA /t REG_DWORD /d 0 /f && ^
+    reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU\" /v NoAutoUpdate /t REG_DWORD /d 1 /f"
+  SHELL
+
+  config.vm.provision "shell", privileged: true, inline: <<-SHELL
+    cmd.exe /c "net use Z: /delete /y 2>NUL && ^
+    net use Z: \\\\vboxsvr\\shared_data /persistent:yes && ^
+    taskkill /f /im explorer.exe && ^
+    start explorer.exe"
+  SHELL
+end

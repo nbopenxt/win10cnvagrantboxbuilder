@@ -1,0 +1,73 @@
+{
+  "builders": [
+    {
+      "type": "virtualbox-iso",
+      "vm_name": "win10-zhcn-22H2",
+      "iso_url": "Windows10.iso",
+      "iso_checksum": "sha256:YOUR_ISO_SHA256_CHECKSUM",
+      "headless": false,
+      "memory": 8192,
+      "cpus": 2,
+      "disk_size": 61440,
+      "guest_os_type": "Windows10_64",
+      "communicator": "winrm",
+      "winrm_username": "vagrant",
+      "winrm_password": "vagrant",
+      "winrm_port": 5985,
+      "winrm_timeout": "12h",
+      "shutdown_command": "shutdown /s /t 0 /f",
+      "floppy_files": [
+        "./configs/autounattend.xml"
+      ],
+      "guest_additions_mode": "attach",
+      "guest_additions_interface": "cdrom",
+      "vboxmanage": [
+        ["modifyvm", "{{.Name}}", "--graphicscontroller", "vmsvga"],
+        ["modifyvm", "{{.Name}}", "--vram", "256"],
+        ["modifyvm", "{{.Name}}", "--accelerate3d", "on"],
+        ["modifyvm", "{{.Name}}", "--audio", "none"]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "powershell",
+      "script": "./scripts/vagrant-env.ps1"
+    },
+    {
+      "type": "powershell",
+      "script": "./scripts/install-guest-additions.ps1"
+    },
+    {
+      "type": "windows-restart",
+      "restart_timeout": "30m",
+      "restart_check_command": "powershell -command \"& {if (Get-Service WinRM | Where-Object {$_.Status -eq 'Running'}) { exit 0 } else { exit 1 }}\""
+    },
+    {
+      "type": "powershell",
+      "inline": [
+        "Write-Host 'Verifying Guest Additions installation...'",
+        "$vboxService = Get-Service -Name 'VBoxService' -ErrorAction SilentlyContinue",
+        "if ($vboxService) {",
+        "    Write-Host 'VBoxService found, status:' $vboxService.Status",
+        "} else {",
+        "    Write-Host 'WARNING: VBoxService not found'",
+        "}",
+        "Write-Host 'Verifying WinRM service...'",
+        "$winrmService = Get-Service -Name 'WinRM' -ErrorAction SilentlyContinue",
+        "if ($winrmService) {",
+        "    Write-Host 'WinRM service status:' $winrmService.Status",
+        "} else {",
+        "    Write-Host 'ERROR: WinRM service not found'",
+        "}"
+      ]
+    }
+  ],
+  "post-processors": [
+    {
+      "type": "vagrant",
+      "keep_input_artifact": false,
+      "output": "windows10-zhcn-22H2.box"
+    }
+  ]
+}

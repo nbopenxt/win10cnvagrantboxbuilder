@@ -1,0 +1,30 @@
+# Box files
+*.box
+
+# ISO files
+*.iso
+
+# Packer cache
+packer_cache/
+
+# Packer output
+output-*/
+
+# VirtualBox
+*.vdi
+*.vmdk
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
