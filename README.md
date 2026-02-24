@@ -119,100 +119,16 @@ cd my-win10-project
 
 ### 2. Create Vagrantfile
 
-Refer to `examples/Vagrantfile`:
+Refer to the example files:
 
-**Basic Configuration:**
+- **Basic Configuration**: [examples/Vagrantfile](examples/Vagrantfile)
+- **With Shared Folder**: [examples/Vagrantfile.with-share](examples/Vagrantfile.with-share)
 
-```ruby
-Vagrant.configure("2") do |config|
-  config.vm.box = "windows10-zhcn"
-  config.vm.define "win10-dev"
-  config.vm.boot_timeout = 300
-  
-  config.vm.network "forwarded_port", guest: 3389, host: 53389
-  config.vm.network "forwarded_port", guest: 5985, host: 55985
-
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = 8192
-    vb.cpus = 2
-    vb.gui = true
-    vb.name = "Win10-Dev"
-  end
-
-  config.vm.communicator = "winrm"
-  config.winrm.username = "vagrant"
-  config.winrm.password = "vagrant"
-end
-```
-
-**With Shared Folder:**
-
-Refer to `examples/Vagrantfile.with-share` to map host directory to Z: drive in VM:
-
-```ruby
-Vagrant.configure("2") do |config|
-  config.vm.box = "windows10-zhcn"
-  config.vm.define "win10-with-share"
-  config.vm.boot_timeout = 300
-  
-  config.vm.network "forwarded_port", guest: 3389, host: 53389
-  config.vm.network "forwarded_port", guest: 5985, host: 55985
-
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = 8192
-    vb.cpus = 2
-    vb.gui = true
-    vb.name = "Win10-With-Share"
-
-    # Shared folder: host ./share_data maps to VM Z: drive
-    vb.customize [
-      "sharedfolder", "add", :id,
-      "--name", "shared_data",
-      "--hostpath", File.expand_path("./share_data"),
-      "--automount"
-    ]
-  end
-
-  config.vm.synced_folder ".", "/vagrant", disabled: true
-
-  config.vm.communicator = "winrm"
-  config.winrm.username = "vagrant"
-  config.winrm.password = "vagrant"
-
-  # Mount shared folder and configure system
-  config.vm.provision "shell", privileged: true, inline: <<-SHELL
-    cmd.exe /c "@echo off && ^
-    net use Z: /delete /y 2>NUL && ^
-    net use Z: \\\\vboxsvr\\shared_data /persistent:yes 2>NUL && ^
-    if exist \"Z:\\\" ( ^
-      if not exist \"Z:\\app\" mkdir \"Z:\\app\" && ^
-      if not exist \"Z:\\logs\" mkdir \"Z:\\logs\" && ^
-      if not exist \"Z:\\scripts\" mkdir \"Z:\\scripts\" ^
-    ) && ^
-    secedit /export /cfg C:\\secpol.cfg /quiet && ^
-    (findstr /v \"PasswordComplexity\" C:\\secpol.cfg) > C:\\secpol.cfg.tmp && ^
-    echo PasswordComplexity = 0 >> C:\\secpol.cfg.tmp && ^
-    secedit /configure /db C:\\Windows\\security\\local.sdb /cfg C:\\secpol.cfg.tmp /areas SECURITYPOLICY /quiet && ^
-    del C:\\secpol.cfg C:\\secpol.cfg.tmp /f /q && ^
-    reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\" /v EnableLUA /t REG_DWORD /d 0 /f && ^
-    reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU\" /v NoAutoUpdate /t REG_DWORD /d 1 /f"
-  SHELL
-
-  # Refresh drive and restart explorer
-  config.vm.provision "shell", privileged: true, inline: <<-SHELL
-    cmd.exe /c "net use Z: /delete /y 2>NUL && ^
-    net use Z: \\\\vboxsvr\\shared_data /persistent:yes && ^
-    taskkill /f /im explorer.exe && ^
-    start explorer.exe"
-  SHELL
-end
-```
-
-**Configuration Details:**
+**Configuration Details (with shared folder):**
 
 | Setting | Description |
 |---------|-------------|
-| Shared Folder | Host `./share_data` maps to VM `Z:` drive |
+| Shared Folder | Host `./share_data/z` maps to VM `Z:` drive |
 | Create Directories | Auto-create `Z:\app`, `Z:\logs`, `Z:\scripts` |
 | Disable Password Complexity | Allow simple passwords |
 | Disable UAC | Turn off User Account Control prompts |
@@ -221,7 +137,7 @@ end
 Create shared directory on host before use:
 
 ```powershell
-mkdir share_data
+mkdir share_data\z
 ```
 
 ### 3. Start VM

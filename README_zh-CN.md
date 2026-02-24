@@ -117,100 +117,16 @@ cd my-win10-project
 
 ### 2. 创建 Vagrantfile
 
-参考 `examples/Vagrantfile` 创建配置文件：
+参考示例文件创建配置文件：
 
-**基础配置：**
+- **基础配置**: [examples/Vagrantfile](examples/Vagrantfile)
+- **带共享文件夹配置**: [examples/Vagrantfile.with-share](examples/Vagrantfile.with-share)
 
-```ruby
-Vagrant.configure("2") do |config|
-  config.vm.box = "windows10-zhcn"
-  config.vm.define "win10-dev"
-  config.vm.boot_timeout = 300
-  
-  config.vm.network "forwarded_port", guest: 3389, host: 53389
-  config.vm.network "forwarded_port", guest: 5985, host: 55985
-
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = 8192
-    vb.cpus = 2
-    vb.gui = true
-    vb.name = "Win10-Dev"
-  end
-
-  config.vm.communicator = "winrm"
-  config.winrm.username = "vagrant"
-  config.winrm.password = "vagrant"
-end
-```
-
-**带共享文件夹配置：**
-
-参考 `examples/Vagrantfile.with-share`，在虚拟机中创建 Z 盘映射到宿主机目录：
-
-```ruby
-Vagrant.configure("2") do |config|
-  config.vm.box = "windows10-zhcn"
-  config.vm.define "win10-with-share"
-  config.vm.boot_timeout = 300
-  
-  config.vm.network "forwarded_port", guest: 3389, host: 53389
-  config.vm.network "forwarded_port", guest: 5985, host: 55985
-
-  config.vm.provider "virtualbox" do |vb|
-    vb.memory = 8192
-    vb.cpus = 2
-    vb.gui = true
-    vb.name = "Win10-With-Share"
-
-    # 共享文件夹配置：宿主机 ./share_data 映射到虚拟机 Z: 盘
-    vb.customize [
-      "sharedfolder", "add", :id,
-      "--name", "shared_data",
-      "--hostpath", File.expand_path("./share_data"),
-      "--automount"
-    ]
-  end
-
-  config.vm.synced_folder ".", "/vagrant", disabled: true
-
-  config.vm.communicator = "winrm"
-  config.winrm.username = "vagrant"
-  config.winrm.password = "vagrant"
-
-  # 挂载共享文件夹并配置系统
-  config.vm.provision "shell", privileged: true, inline: <<-SHELL
-    cmd.exe /c "@echo off && ^
-    net use Z: /delete /y 2>NUL && ^
-    net use Z: \\\\vboxsvr\\shared_data /persistent:yes 2>NUL && ^
-    if exist \"Z:\\\" ( ^
-      if not exist \"Z:\\app\" mkdir \"Z:\\app\" && ^
-      if not exist \"Z:\\logs\" mkdir \"Z:\\logs\" && ^
-      if not exist \"Z:\\scripts\" mkdir \"Z:\\scripts\" ^
-    ) && ^
-    secedit /export /cfg C:\\secpol.cfg /quiet && ^
-    (findstr /v \"PasswordComplexity\" C:\\secpol.cfg) > C:\\secpol.cfg.tmp && ^
-    echo PasswordComplexity = 0 >> C:\\secpol.cfg.tmp && ^
-    secedit /configure /db C:\\Windows\\security\\local.sdb /cfg C:\\secpol.cfg.tmp /areas SECURITYPOLICY /quiet && ^
-    del C:\\secpol.cfg C:\\secpol.cfg.tmp /f /q && ^
-    reg add \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\" /v EnableLUA /t REG_DWORD /d 0 /f && ^
-    reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU\" /v NoAutoUpdate /t REG_DWORD /d 1 /f"
-  SHELL
-
-  # 刷新盘符并重启资源管理器
-  config.vm.provision "shell", privileged: true, inline: <<-SHELL
-    cmd.exe /c "net use Z: /delete /y 2>NUL && ^
-    net use Z: \\\\vboxsvr\\shared_data /persistent:yes && ^
-    taskkill /f /im explorer.exe && ^
-    start explorer.exe"
-  SHELL
-end
-```
-
-**配置说明：**
+**配置说明（带共享文件夹版本）：**
 
 | 配置项 | 说明 |
 |--------|------|
-| 共享文件夹 | 宿主机 `./share_data` 映射到虚拟机 `Z:` 盘 |
+| 共享文件夹 | 宿主机 `./share_data/z` 映射到虚拟机 `Z:` 盘 |
 | 创建目录 | 自动创建 `Z:\app`、`Z:\logs`、`Z:\scripts` |
 | 禁用密码复杂度 | 允许设置简单密码 |
 | 禁用 UAC | 关闭用户账户控制提示 |
@@ -219,7 +135,7 @@ end
 使用前宿主机需创建共享目录：
 
 ```powershell
-mkdir share_data
+mkdir share_data\z
 ```
 
 ### 3. 启动虚拟机
