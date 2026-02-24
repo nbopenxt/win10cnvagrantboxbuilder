@@ -1,3 +1,34 @@
+PROJECT_ROOT = File.dirname(__FILE__)
+SHARE_DATA_PATH = File.join(PROJECT_ROOT, 'share_data', 'z')
+
+def find_vboxmanage
+  vboxmanage = 'VBoxManage'
+  return vboxmanage if system("#{vboxmanage} --version >NUL 2>&1")
+  
+  begin
+    require 'win32/registry'
+    install_dir = nil
+    Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\Oracle\VirtualBox') do |reg|
+      install_dir = reg['InstallDir']
+    end
+    vboxmanage_path = File.join(install_dir, 'VBoxManage.exe')
+    return vboxmanage_path if File.exist?(vboxmanage_path)
+  rescue
+  end
+  
+  nil
+end
+
+vboxmanage = find_vboxmanage
+if vboxmanage
+  system("\"#{vboxmanage}\" sharedfolder remove Win10-With-Share --name z_share 2>NUL")
+else
+  puts "\n" + '=' * 60
+  puts "警告: 找不到 VBoxManage.exe"
+  puts "请将 VirtualBox 安装目录添加到系统环境变量 PATH 中"
+  puts '=' * 60 + "\n"
+end
+
 Vagrant.configure("2") do |config|
   config.vm.box = "windows10-zhcn"
   config.vm.define "win10-with-share"
@@ -6,6 +37,7 @@ Vagrant.configure("2") do |config|
   config.vm.network "forwarded_port", guest: 3389, host: 53389, auto_correct: true
   config.vm.network "forwarded_port", guest: 5985, host: 55985, auto_correct: true
   config.vm.network "forwarded_port", guest: 5986, host: 55986, auto_correct: true
+  config.vm.network "forwarded_port", guest: 22, host: 2222, auto_correct: true
 
   config.vm.provider "virtualbox" do |vb|
     vb.memory = 8192
@@ -18,13 +50,14 @@ Vagrant.configure("2") do |config|
 
     vb.customize [
       "sharedfolder", "add", :id,
-      "--name", "shared_data",
-      "--hostpath", File.expand_path("./share_data"),
+      "--name", "z_share",
+      "--hostpath", SHARE_DATA_PATH.gsub('\\', '/'),
       "--automount"
     ]
   end
 
   config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.synced_folder "./share_data/z", "/z_share", type: "virtualbox", disabled: true
 
   config.vm.communicator = "winrm"
   config.winrm.username = "vagrant"
@@ -34,7 +67,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", privileged: true, inline: <<-SHELL
     cmd.exe /c "@echo off && ^
     net use Z: /delete /y 2>NUL && ^
-    net use Z: \\\\vboxsvr\\shared_data /persistent:yes 2>NUL && ^
+    net use Z: \\\\vboxsvr\\z_share /persistent:yes 2>NUL && ^
     if exist \"Z:\\\" ( ^
       if not exist \"Z:\\app\" mkdir \"Z:\\app\" && ^
       if not exist \"Z:\\logs\" mkdir \"Z:\\logs\" && ^
@@ -51,7 +84,11 @@ Vagrant.configure("2") do |config|
 
   config.vm.provision "shell", privileged: true, inline: <<-SHELL
     cmd.exe /c "net use Z: /delete /y 2>NUL && ^
-    net use Z: \\\\vboxsvr\\shared_data /persistent:yes && ^
+    net use Z: \\\\vboxsvr\\z_share /persistent:yes && ^
+    echo rescan > C:\\rescan.txt && ^
+    echo exit >> C:\\rescan.txt && ^
+    diskpart /s C:\\rescan.txt && ^
+    del C:\\rescan.txt /f /q && ^
     taskkill /f /im explorer.exe && ^
     start explorer.exe"
   SHELL

@@ -1,3 +1,34 @@
+PROJECT_ROOT = File.dirname(__FILE__)
+SHARE_DATA_PATH = File.join(PROJECT_ROOT, 'share_data', 'z')
+
+def find_vboxmanage
+  vboxmanage = 'VBoxManage'
+  return vboxmanage if system("#{vboxmanage} --version >NUL 2>&1")
+  
+  begin
+    require 'win32/registry'
+    install_dir = nil
+    Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\Oracle\VirtualBox') do |reg|
+      install_dir = reg['InstallDir']
+    end
+    vboxmanage_path = File.join(install_dir, 'VBoxManage.exe')
+    return vboxmanage_path if File.exist?(vboxmanage_path)
+  rescue
+  end
+  
+  nil
+end
+
+vboxmanage = find_vboxmanage
+if vboxmanage
+  system("\"#{vboxmanage}\" sharedfolder remove Win10-Dev --name z_share 2>NUL")
+else
+  puts "\n" + '=' * 60
+  puts "警告: 找不到 VBoxManage.exe"
+  puts "请将 VirtualBox 安装目录添加到系统环境变量 PATH 中"
+  puts '=' * 60 + "\n"
+end
+
 Vagrant.configure("2") do |config|
   config.vm.box = "windows10-zhcn"
   config.vm.define "win10-dev"
@@ -6,6 +37,7 @@ Vagrant.configure("2") do |config|
   config.vm.network "forwarded_port", guest: 3389, host: 53389, auto_correct: true
   config.vm.network "forwarded_port", guest: 5985, host: 55985, auto_correct: true
   config.vm.network "forwarded_port", guest: 5986, host: 55986, auto_correct: true
+  config.vm.network "forwarded_port", guest: 22, host: 2222, auto_correct: true
 
   config.vm.provider "virtualbox" do |vb|
     vb.memory = 8192
@@ -16,6 +48,8 @@ Vagrant.configure("2") do |config|
     vb.customize ["modifyvm", :id, "--accelerate3d", "on"]
     vb.customize ["modifyvm", :id, "--vram", 256]
   end
+
+  config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.communicator = "winrm"
   config.winrm.username = "vagrant"
